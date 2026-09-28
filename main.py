@@ -1,36 +1,54 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-import requests
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from typing import Optional
 import os
 
 app = FastAPI()
 
-# Get the backend URL from environment variable
-BACKEND_URL = os.getenv("BACKEND_URL", "https://wazobia-ai.onrender.com")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
-async def proxy(request: Request, path: str):
-    # Build the target URL
-    url = f"{BACKEND_URL}/{path}"
-    
-    # Get headers (exclude host)
-    headers = {key: value for key, value in request.headers.items() if key.lower() != "host"}
-    
-    # Get body for non-GET requests
-    body = await request.body() if request.method not in ["GET", "HEAD"] else None
-    
-    # Make the request to the backend
-    response = requests.request(
-        method=request.method,
-        url=url,
-        headers=headers,
-        data=body,
-        allow_redirects=False
-    )
-    
-    # Return the response
-    return JSONResponse(
-        content=response.json() if response.content else {},
-        status_code=response.status_code,
-        headers=dict(response.headers)
-    )
+# Mount static files (for frontend)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class LoginResponse(BaseModel):
+    message: str
+    token: Optional[str] = None
+
+class ChatRequest(BaseModel):
+    message: str
+    user_id: Optional[str] = None
+
+class ChatResponse(BaseModel):
+    reply: str
+
+@app.get("/")
+async def root():
+    # Serve frontend HTML
+    return FileResponse("static/index.html")
+
+@app.post("/login")
+async def login(data: LoginRequest):
+    if not data.email or not data.password:
+        raise HTTPException(status_code=400, detail="Email and password required")
+    return LoginResponse(message="Login successful", token="dummy-token-123")
+
+@app.post("/chat")
+async def chat(data: ChatRequest):
+    return ChatResponse(reply=f"Echo: {data.message}")
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
