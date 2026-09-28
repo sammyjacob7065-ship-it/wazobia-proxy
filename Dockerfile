@@ -18,7 +18,10 @@ WORKDIR /build
 # warns will break if done as a flat "pip install -r requirements.txt".
 RUN git clone https://github.com/Ememzyvisuals/wazobiavoice-TTS.git
 WORKDIR /build/wazobiavoice-TTS
-RUN bash scripts/install.sh
+
+# The script itself also apt-get installs cargo/rustc directly, so the
+# package index needs to be present again right before it runs.
+RUN apt-get update && bash scripts/install.sh
 
 # Now add the API server itself on top of that environment.
 RUN pip install --no-cache-dir fastapi uvicorn python-multipart
